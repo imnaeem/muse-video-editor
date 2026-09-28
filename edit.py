@@ -301,10 +301,14 @@ def step_overlay(inp, out, img, start=0, end=5, position="bottom-right",
     }
     x, y = pos.get(position, pos["bottom-right"])
     dur = max(end - start, 0.1)
-    ovf = f"[1:v]format=rgba,scale={ow}:{oh}"
+    # Shift the looped overlay stream's clock so its t= matches the main
+    # timeline: otherwise fade in/out (timed on the overlay stream) would
+    # play out at t=0 while the overlay is only *displayed* at [start, end].
+    ovf = (f"[1:v]format=rgba,scale={ow}:{oh},"
+           f"setpts=PTS-STARTPTS+{start}/TB")
     if fade and fade * 2 < dur:
-        ovf += (f",fade=t=in:st=0:d={fade}:alpha=1,"
-                f"fade=t=out:st={dur - fade:.3f}:d={fade}:alpha=1")
+        ovf += (f",fade=t=in:st={start}:d={fade}:alpha=1,"
+                f"fade=t=out:st={end - fade:.3f}:d={fade}:alpha=1")
     filt = (ovf + f"[ov];[0:v][ov]overlay=x={x:.0f}:y={y:.0f}:"
             f"enable='between(t,{start},{end})'[v]")
     cmd = [FFMPEG, "-y", "-v", "error", "-i", inp,
