@@ -34,6 +34,8 @@ edit.json format:
     {"op": "mute"},
     {"op": "captions", "model": "small", "max_words": 4,
      "highlight": "yellow", "uppercase": true, "position": "middle"},
+    {"op": "overlay", "file": "input/cutout.png", "start": 0, "end": 5,
+     "position": "bottom-right", "scale": 0.35, "fade": 0.5},
     {"op": "extract_audio", "format": "mp3"},
     {"op": "thumbnail", "at": 3.0}
   ]
@@ -272,6 +274,49 @@ def step_mute(inp, out):
          "-an", out], "mute")
 
 
+def step_overlay(inp, out, img, start=0, end=5, position="bottom-right",
+                 scale=0.35, margin=40, fade=0.5):
+    """Overlay a PNG (with alpha, e.g. bg-removed cutout) for a time window.
+
+    position: center/top/bottom/left/right/top-left/top-right/
+              bottom-left/bottom-right. scale: overlay width as a fraction
+    of video width. fade: fade in/out seconds on the overlay.
+    """
+    v = probe(inp)
+    W, H = v["width"], v["height"]
+    im = probe(img)
+    ow = max(1, int(W * scale))
+    oh = max(1, int(ow * im["height"] / max(im["width"], 1)))
+    m = margin
+    pos = {
+        "center": ((W - ow) / 2, (H - oh) / 2),
+        "top": ((W - ow) / 2, m),
+        "bottom": ((W - ow) / 2, H - oh - m),
+        "left": (m, (H - oh) / 2),
+        "right": (W - ow - m, (H - oh) / 2),
+        "top-left": (m, m),
+        "top-right": (W - ow - m, m),
+        "bottom-left": (m, H - oh - m),
+        "bottom-right": (W - ow - m, H - oh - m),
+    }
+    x, y = pos.get(position, pos["bottom-right"])
+    dur = max(end - start, 0.1)
+    ovf = f"[1:v]format=rgba,scale={ow}:{oh}"
+    if fade and fade * 2 < dur:
+        ovf += (f",fade=t=in:st=0:d={fade}:alpha=1,"
+                f"fade=t=out:st={dur - fade:.3f}:d={fade}:alpha=1")
+    filt = (ovf + f"[ov];[0:v][ov]overlay=x={x:.0f}:y={y:.0f}:"
+            f"enable='between(t,{start},{end})'[v]")
+    cmd = [FFMPEG, "-y", "-v", "error", "-i", inp,
+           "-loop", "1", "-framerate", "30", "-i", img,
+           "-filter_complex", filt, "-map", "[v]"]
+    if v["has_audio"]:
+        cmd += ["-map", "0:a"]
+    # image loop must not outlive the main video
+    cmd += ["-shortest"]
+    run(cmd + enc_args() + [out], "overlay image")
+
+
 CAPTIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "captions")
 CAPTIONS_VENV_PY = os.path.join(CAPTIONS_DIR, "venv", "bin", "python")
@@ -357,6 +402,11 @@ def run_project(projdir, preview=False):
                           s.get("y", "(in_h-h)/2"))
             elif op == "mute":
                 step_mute(cur, nxt)
+            elif op == "overlay":
+                step_overlay(cur, nxt, p(s["file"]), s.get("start", 0),
+                             s.get("end", 5), s.get("position", "bottom-right"),
+                             s.get("scale", 0.35), s.get("margin", 40),
+                             s.get("fade", 0.5))
             elif op == "captions":
                 step_captions(cur, nxt, projdir, s.get("model", "small"),
                               s.get("max_words", 4), s.get("highlight", "yellow"),

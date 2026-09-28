@@ -16,6 +16,10 @@ captions/venv/bin/pip install -r captions/requirements.txt
 # vision env, CPU-only torch (~1.2GB)
 python3 -m venv vision/venv
 vision/venv/bin/pip install -r vision/requirements.txt
+
+# background-removal env (~250MB; model ~170MB downloads on first run)
+python3 -m venv bgremove/venv
+bgremove/venv/bin/pip install -r bgremove/requirements.txt
 ```
 
 Models download automatically on first run and are cached locally
@@ -76,6 +80,11 @@ See `edit.py` docstring for the full op list. Common patterns:
   Transcribes speech with word timestamps (free local whisper, ~1x realtime)
   and burns bold ALL-CAPS captions with the spoken word highlighted.
   Also saves `output/words.json` + `output/captions.ass` for reuse.
+- Image overlay (e.g. a bg-removed cutout, start/end of clip):
+  `{"op": "overlay", "file": "input/cutout.png", "start": 0, "end": 5, "position": "bottom-right", "scale": 0.35, "fade": 0.5}`
+  Positions: center/top/bottom/left/right and four corners. `scale` is the
+  overlay width as a fraction of video width; `fade` fades it in/out.
+  The PNG's alpha channel is respected.
 - Speed: `{"op": "speed", "factor": 1.25}`
 
 Steps run in order; each feeds the next. `concat` replaces the timeline.
@@ -107,6 +116,23 @@ Speed notes (2 CPUs): transcription ~1x realtime; vision ~60-90s per scene on
 CPU (model loads once per run, so few scenes = fine, dozens = slow);
 a 10-min talking-head video with a handful of scenes analyzes in roughly
 10-15 min end to end.
+
+## Background removal (`bgremove/`)
+
+Cut out the focus object from any image, transparent PNG out, free and
+local. Model: rembg `isnet-general-use` (open-source, best general-purpose
+quality in the rembg zoo; `u2net` and `u2net_human_seg` also available).
+
+    bgremove/venv/bin/python bgremove/remove.py input.jpg -o cutout.png
+
+The model (~170MB) downloads once into `bgremove/models/` (gitignored) on
+first run. The cutout drops straight into video with the `overlay` op:
+
+    {"op": "overlay", "file": "input/cutout.png", "start": 0, "end": 5,
+     "position": "bottom-right", "scale": 0.35, "fade": 0.5}
+
+Typical use: "take this photo, remove the background, show the person at
+the start/end of the clip."
 
 ## Practical notes
 
