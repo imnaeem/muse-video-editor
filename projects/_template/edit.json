@@ -1,0 +1,1 @@
+{"output":"output/final.mp4","source":"input/main.mp4","steps":[{"end":60,"op":"trim","start":5},{"box":true,"color":"white","end":8,"fontsize":56,"op":"text","start":2,"text":"Video Title"},{"duck":true,"file":"input/music.mp3","op":"bgm","volume":0.15},{"in":1.0,"op":"fade","out":1.0}]}

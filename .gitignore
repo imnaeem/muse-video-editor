@@ -1,0 +1,16 @@
+# Python virtualenvs (machine-specific, rebuild from requirements*.txt)
+captions/venv/
+vision/venv/
+
+# AI models (large, auto-download on first run - see README Setup)
+captions/models/
+vision/models/
+
+# Projects: only the template ships; real projects (personal media) stay local
+projects/*
+!projects/_template/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
